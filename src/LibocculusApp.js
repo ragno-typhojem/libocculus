@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UtensilsCrossed, Gift, MapPin, Award, Clock, TrendingUp, QrCode as QrCodeIcon, LogOut, AlertCircle, CheckCircle, Loader2, History, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
-import { formatDistanceToNow } from 'date-fns';
-import { tr } from 'date-fns/locale';
 
 const LibocculusApp = () => {
   // Auth States
