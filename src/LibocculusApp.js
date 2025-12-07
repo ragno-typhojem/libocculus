@@ -27,7 +27,8 @@ const LibocculusApp = () => {
   const [lastSubmitTime, setLastSubmitTime] = useState(null);
 
   // Data States
-  const [libraryData, setLibraryData] = useState({ // eslint-disable-next-line no-unused-vars
+  // eslint-disable-next-line no-unused-vars
+  const [libraryData, setLibraryData] = useState({ 
     '1B': { occupancy: 45, lastUpdated: new Date() },
     '2B': { occupancy: 67, lastUpdated: new Date() },
     '3B': { occupancy: 82, lastUpdated: new Date() },
@@ -36,13 +37,13 @@ const LibocculusApp = () => {
     '3A': { occupancy: 71, lastUpdated: new Date() },
     'SESLİ': { occupancy: 89, lastUpdated: new Date() }
   });
-
-  const [cafeteriaData, setCafeteriaData] = useState({ // eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
+  const [cafeteriaData, setCafeteriaData] = useState({ 
     'ÜST_KAT': { occupancy: 72, queueStatus: 'Orta', lastUpdated: new Date() },
     'ALT_KAT': { occupancy: 58, queueStatus: 'Kısa', lastUpdated: new Date() }
   });
-
-  const [rewards, setRewards] = useState([ // eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line no-unused-vars
+  const [rewards, setRewards] = useState([ 
     { id: 1, name: 'Çatı Cafe - Kahve', points: 50, venue: 'Çatı', icon: '☕', available: true },
     { id: 2, name: 'Yemekhane - Tatlı', points: 30, venue: 'Yemekhane', icon: '🍰', available: true },
     { id: 3, name: 'Zeynel - Sandviç', points: 40, venue: 'Zeynel', icon: '🥪', available: true },
@@ -221,7 +222,8 @@ const LibocculusApp = () => {
     
     try {
       // Get location automatically
-      const position = await new Promise((resolve, reject) => { // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars
+      const position = await new Promise((resolve, reject) => { 
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
           timeout: 10000,
