@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -11,13 +11,6 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
-// Debug için (sonra silebilirsin)
-console.log('Firebase Config:', {
-  apiKey: firebaseConfig.apiKey ? '✓ Loaded' : '✗ Missing',
-  authDomain: firebaseConfig.authDomain ? '✓ Loaded' : '✗ Missing',
-  projectId: firebaseConfig.projectId ? '✓ Loaded' : '✗ Missing'
-});
-
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const db = getFirestore(app);
