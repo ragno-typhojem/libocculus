@@ -231,7 +231,7 @@ export const useAuth = () => {
     setSuccess('');
 
     try {
-      if (!email.endsWith('@metu.edu.tr')) {
+      if (!email.endsWith('@gmail.com')) {
         throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
       }
 
