@@ -3,6 +3,7 @@ import { auth, db } from '../firebase/config';
 import { 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendSignInLinkToEmail,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
@@ -12,8 +13,8 @@ export const useAuth = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // ✅ Kayıt ol
-  const register = async (email, password) => {
+  // ✅ OTP Gönder (Firebase Email Link kullanarak)
+  const sendOTP = async (email) => {
     setLoading(true);
     setError('');
     setSuccess('');
@@ -24,14 +25,91 @@ export const useAuth = () => {
         throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
       }
 
+      console.log('🔵 OTP oluşturuluyor...');
+
+      // 6 haneli OTP oluştur
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = Date.now() + 10 * 60 * 1000; // 10 dakika
+
+      // Firestore'a kaydet
+      await setDoc(doc(db, 'otps', email), {
+        otp,
+        expiresAt,
+        verified: false,
+        createdAt: new Date()
+      });
+
+      console.log('✅ OTP Firestore\'a kaydedildi:', otp);
+
+      // ✅ Firebase Email Link gönder (OTP'yi URL'de gömme)
+      const actionCodeSettings = {
+        url: `https://libocculus.netlify.app/?email=${encodeURIComponent(email)}&otp=${otp}`,
+        handleCodeInApp: false // Email'de direkt gösterilsin
+      };
+
+      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+
+      console.log('✅ Email gönderildi');
+
+      setSuccess('Doğrulama kodu e-posta adresinize gönderildi! (10 dakika geçerli)');
+      return true;
+    } catch (err) {
+      console.error('❌ OTP send error:', err);
+
+      let errorMessage = 'OTP gönderilemedi. Lütfen tekrar deneyin.';
+
+      if (err.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz e-posta adresi.';
+      } else if (err.code === 'auth/quota-exceeded') {
+        errorMessage = 'Günlük limit aşıldı. Lütfen yarın tekrar deneyin.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+
+      setError(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ OTP Doğrula ve Kayıt Ol
+  const verifyOTPAndRegister = async (email, otp, password) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      console.log('🔵 OTP doğrulanıyor...');
+
+      // Firestore'dan OTP'yi getir
+      const otpDoc = await getDoc(doc(db, 'otps', email));
+
+      if (!otpDoc.exists()) {
+        throw new Error('OTP bulunamadı. Lütfen yeni kod isteyin.');
+      }
+
+      const otpData = otpDoc.data();
+
+      // Süre kontrolü
+      if (Date.now() > otpData.expiresAt) {
+        throw new Error('OTP süresi dolmuş. Lütfen yeni kod isteyin.');
+      }
+
+      // OTP kontrolü
+      if (otpData.otp !== otp.trim()) {
+        throw new Error('Geçersiz OTP. Lütfen tekrar kontrol edin.');
+      }
+
+      console.log('✅ OTP doğrulandı');
+
       // Şifre validasyonu
       if (password.length < 6) {
         throw new Error('Şifre en az 6 karakter olmalıdır');
       }
 
+      // Kullanıcı oluştur
       console.log('🔵 Kullanıcı oluşturuluyor...');
-
-      // Firebase Auth ile kullanıcı oluştur
       const result = await createUserWithEmailAndPassword(auth, email, password);
 
       console.log('✅ Firebase Auth kullanıcısı oluşturuldu');
@@ -39,28 +117,37 @@ export const useAuth = () => {
       // Firestore'a kullanıcı bilgilerini kaydet
       await setDoc(doc(db, 'users', result.user.uid), {
         email: result.user.email,
-        studentId: email.split('@')[0].substring(1), // e1234567 -> 1234567
+        studentId: email.split('@')[0].substring(1),
         points: 0,
         totalContributions: 0,
+        emailVerified: true,
         createdAt: new Date(),
         lastLogin: new Date()
       });
 
       console.log('✅ Firestore kaydı oluşturuldu');
 
+      // OTP'yi sil (veya verified işaretle)
+      await setDoc(doc(db, 'otps', email), {
+        verified: true,
+        verifiedAt: new Date()
+      }, { merge: true });
+
       setSuccess('Kayıt başarılı! Giriş yapabilirsiniz.');
       return result.user;
     } catch (err) {
-      console.error('❌ Register error:', err);
+      console.error('❌ Verify and register error:', err);
 
-      let errorMessage = 'Kayıt başarısız. Lütfen tekrar deneyin.';
+      let errorMessage = 'Doğrulama başarısız.';
 
-      if (err.code === 'auth/email-already-in-use') {
+      if (err.message.includes('OTP süresi dolmuş')) {
+        errorMessage = 'Doğrulama kodunun süresi dolmuş. Yeni kod isteyin.';
+      } else if (err.message.includes('Geçersiz OTP')) {
+        errorMessage = 'Geçersiz doğrulama kodu. Lütfen mailinizi kontrol edin.';
+      } else if (err.message.includes('OTP bulunamadı')) {
+        errorMessage = err.message;
+      } else if (err.code === 'auth/email-already-in-use') {
         errorMessage = 'Bu e-posta adresi zaten kullanımda. Giriş yapmayı deneyin.';
-      } else if (err.code === 'auth/weak-password') {
-        errorMessage = 'Şifre çok zayıf. En az 6 karakter kullanın.';
-      } else if (err.code === 'auth/invalid-email') {
-        errorMessage = 'Geçersiz e-posta adresi.';
       } else if (err.message) {
         errorMessage = err.message;
       }
@@ -79,14 +166,12 @@ export const useAuth = () => {
     setSuccess('');
 
     try {
-      // Email validasyonu
       if (!email.endsWith('@metu.edu.tr')) {
         throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
       }
 
       console.log('🔵 Giriş yapılıyor...');
 
-      // Firebase Auth ile giriş
       const result = await signInWithEmailAndPassword(auth, email, password);
 
       console.log('✅ Firebase Auth girişi başarılı');
@@ -96,7 +181,6 @@ export const useAuth = () => {
 
       if (!userDoc.exists()) {
         console.log('⚠️ Firestore kaydı yok, oluşturuluyor...');
-        // Eğer Firestore kaydı yoksa oluştur (eski kullanıcılar için)
         await setDoc(doc(db, 'users', result.user.uid), {
           email: result.user.email,
           studentId: email.split('@')[0].substring(1),
@@ -173,7 +257,8 @@ export const useAuth = () => {
   };
 
   return {
-    register,
+    sendOTP,
+    verifyOTPAndRegister,
     login,
     resetPassword,
     loading,
