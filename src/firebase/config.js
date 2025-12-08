@@ -11,6 +11,18 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID
 };
 
+// Firebase'i başlat
 const app = initializeApp(firebaseConfig);
+
+// Auth'u başlat
 export const auth = getAuth(app);
+
+// Firestore'u başlat
 export const db = getFirestore(app);
+
+// ✅ EKSTRA: Auth dil ayarı (opsiyonel, Türkçe hatalar için)
+auth.languageCode = 'tr';
+
+// ✅ Debug için
+console.log('🔥 Firebase initialized');
+console.log('🔥 Auth domain:', firebaseConfig.authDomain);
