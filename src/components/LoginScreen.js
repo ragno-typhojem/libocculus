@@ -1,56 +1,34 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Mail, Lock, Loader2, AlertCircle, CheckCircle, Shield, RefreshCw } from 'lucide-react';
+import { BookOpen, Mail, Lock, Loader2, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const LoginScreen = () => {
   const [mode, setMode] = useState('login'); // login, register, verify, reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [otp, setOtp] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
+  const { register, login, resendVerification, resetPassword, loading, error, success } = useAuth();
 
-  const { sendOTP, verifyOTPAndRegister, login, resetPassword, loading, error, success } = useAuth();
-
-  // ✅ Giriş yap
-  const handleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    await login(email, password);
-  };
 
-  // ✅ OTP gönder
-  const handleSendOTP = async (e) => {
-    e.preventDefault();
-    const result = await sendOTP(email);
-    if (result) {
-      setOtpSent(true);
+    if (mode === 'login') {
+      await login(email, password);
+    } else if (mode === 'register') {
+      const user = await register(email, password);
+      if (user) {
+        setMode('verify');
+      }
+    } else if (mode === 'reset') {
+      const result = await resetPassword(email);
+      if (result) {
+        setTimeout(() => setMode('login'), 2000);
+      }
     }
   };
 
-  // ✅ OTP doğrula ve kayıt ol
-  const handleVerifyAndRegister = async (e) => {
-    e.preventDefault();
-
-    if (password.length < 6) {
-      return;
-    }
-
-    const user = await verifyOTPAndRegister(email, otp, password);
-    if (user) {
-      setMode('login');
-      setOtpSent(false);
-      setOtp('');
-      setPassword('');
-    }
-  };
-
-  // ✅ Şifre sıfırla
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    const result = await resetPassword(email);
-    if (result) {
-      setTimeout(() => setMode('login'), 2000);
-    }
+  const handleResendVerification = async () => {
+    await resendVerification();
   };
 
   return (
@@ -113,188 +91,47 @@ const LoginScreen = () => {
               )}
             </AnimatePresence>
 
-            {/* LOGIN FORM */}
-            {mode === 'login' && (
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      placeholder="e1234567@metu.edu.tr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                      disabled={loading}
-                    />
-                  </div>
+            {/* VERIFICATION SCREEN */}
+            {mode === 'verify' ? (
+              <div className="text-center py-8 space-y-4">
+                <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                  <Mail className="w-8 h-8 text-blue-600" />
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Şifre</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                      disabled={loading}
-                      minLength={6}
-                    />
-                  </div>
-                </div>
-
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  E-postanızı Doğrulayın
+                </h3>
+                <p className="text-gray-600 text-sm mb-4">
+                  <strong>{email}</strong> adresine bir doğrulama linki gönderdik.
+                  Mailinizi kontrol edin ve linke tıklayın.
+                </p>
                 <button
-                  type="submit"
+                  onClick={handleResendVerification}
                   disabled={loading}
-                  className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Giriş Yap'}
-                </button>
-
-                <div className="flex justify-between text-sm">
-                  <button
-                    type="button"
-                    onClick={() => { setMode('register'); setOtpSent(false); }}
-                    className="text-red-600 hover:underline"
-                  >
-                    Hesap Oluştur
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode('reset')}
-                    className="text-red-600 hover:underline"
-                  >
-                    Şifremi Unuttum
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* REGISTER FORM - Step 1: Send OTP */}
-            {mode === 'register' && !otpSent && (
-              <form onSubmit={handleSendOTP} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="email"
-                      placeholder="e1234567@metu.edu.tr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                      disabled={loading}
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <>
-                      <Shield className="w-5 h-5" />
-                      Doğrulama Kodu Gönder
+                      <RefreshCw className="w-5 h-5" />
+                      Doğrulama Mailini Tekrar Gönder
                     </>
                   )}
                 </button>
-
                 <button
-                  type="button"
                   onClick={() => setMode('login')}
-                  className="w-full text-center text-red-600 hover:underline text-sm"
+                  className="w-full text-sm text-red-600 hover:underline mt-4"
                 >
                   Giriş sayfasına dön
                 </button>
-              </form>
-            )}
-
-            {/* REGISTER FORM - Step 2: Verify OTP */}
-            {mode === 'register' && otpSent && (
-              <form onSubmit={handleVerifyAndRegister} className="space-y-4">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                  <p className="text-blue-800 text-sm">
-                    <strong>{email}</strong> adresine 6 haneli doğrulama kodu gönderdik.
-                    Lütfen mailinizi kontrol edin.
-                  </p>
-                </div>
-
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Email */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Doğrulama Kodu</label>
-                  <input
-                    type="text"
-                    placeholder="123456"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center text-2xl font-mono tracking-widest"
-                    required
-                    disabled={loading}
-                    maxLength={6}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">Şifre Oluştur</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                      disabled={loading}
-                      minLength={6}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500">En az 6 karakter</p>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || otp.length !== 6}
-                  className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Doğrula ve Kayıt Ol'}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSendOTP}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 text-blue-600 hover:underline text-sm"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Kodu tekrar gönder
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setMode('login'); setOtpSent(false); setOtp(''); }}
-                  className="w-full text-center text-red-600 hover:underline text-sm"
-                >
-                  İptal
-                </button>
-              </form>
-            )}
-
-            {/* RESET PASSWORD FORM */}
-            {mode === 'reset' && (
-              <form onSubmit={handleResetPassword} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
+                  <label className="text-sm font-medium text-gray-700">
+                    ODTÜ E-posta
+                  </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input
@@ -309,31 +146,91 @@ const LoginScreen = () => {
                   </div>
                 </div>
 
+                {/* Password */}
+                {mode !== 'reset' && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">
+                      Şifre
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                        required
+                        disabled={loading}
+                        minLength={6}
+                      />
+                    </div>
+                    {mode === 'register' && (
+                      <p className="text-xs text-gray-500">En az 6 karakter</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Submit Button */}
                 <button
                   type="submit"
                   disabled={loading}
                   className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Şifre Sıfırlama Linki Gönder'}
+                  {loading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      {mode === 'login' && 'Giriş Yap'}
+                      {mode === 'register' && 'Kayıt Ol'}
+                      {mode === 'reset' && 'Şifre Sıfırlama Linki Gönder'}
+                    </>
+                  )}
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setMode('login')}
-                  className="w-full text-center text-red-600 hover:underline text-sm"
-                >
-                  Giriş sayfasına dön
-                </button>
+                {/* Mode Switchers */}
+                <div className="flex justify-between text-sm">
+                  {mode === 'login' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setMode('register')}
+                        className="text-red-600 hover:underline"
+                      >
+                        Hesap Oluştur
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMode('reset')}
+                        className="text-red-600 hover:underline"
+                      >
+                        Şifremi Unuttum
+                      </button>
+                    </>
+                  )}
+                  {(mode === 'register' || mode === 'reset') && (
+                    <button
+                      type="button"
+                      onClick={() => setMode('login')}
+                      className="w-full text-center text-red-600 hover:underline"
+                    >
+                      Giriş sayfasına dön
+                    </button>
+                  )}
+                </div>
               </form>
             )}
 
             {/* Info Box */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
-              <p className="text-blue-800 text-sm">
-                <strong>ℹ️ Bilgi:</strong> Sadece <strong>@metu.edu.tr</strong> uzantılı
-                e-posta adresleri ile {mode === 'register' ? 'kayıt olabilirsiniz' : 'giriş yapabilirsiniz'}.
-              </p>
-            </div>
+            {mode !== 'verify' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                <p className="text-blue-800 text-sm">
+                  <strong>ℹ️ Bilgi:</strong> Sadece <strong>@metu.edu.tr</strong> uzantılı
+                  e-posta adresleri ile {mode === 'register' ? 'kayıt olabilirsiniz' : 'giriş yapabilirsiniz'}.
+                  {mode === 'register' && ' Kayıt sonrası e-postanızı doğrulamanız gerekecek.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
