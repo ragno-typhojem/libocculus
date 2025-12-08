@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import LoginScreen from './components/LoginScreen';
-import VerifyEmail from './components/VerifyMail';
+import VerifyEmail from './components/VerifyEmail';  // ✅ components'ten import
 import LibocculusApp from './LibocculusApp';
 import { Loader2 } from 'lucide-react';
 
