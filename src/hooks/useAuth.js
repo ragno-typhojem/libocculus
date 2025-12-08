@@ -32,23 +32,37 @@ export const useAuth = () => {
       }
 
       console.log('🔵 Kullanıcı oluşturuluyor...');
+      console.log('📧 Email:', email);
 
       // Firebase Auth ile kullanıcı oluştur
       const result = await createUserWithEmailAndPassword(auth, email, password);
 
       console.log('✅ Firebase Auth kullanıcısı oluşturuldu');
+      console.log('👤 User UID:', result.user.uid);
+      console.log('📧 User Email:', result.user.email);
+      console.log('✉️ Email Verified:', result.user.emailVerified);
 
       // ✅ Email doğrulama maili gönder
       console.log('🔵 Doğrulama maili gönderiliyor...');
-      
-      await sendEmailVerification(result.user, {
-        url: window.location.origin, // Doğrulama sonrası ana sayfaya yönlendir
-        handleCodeInApp: false
-      });
 
-      console.log('✅ Doğrulama maili gönderildi');
+      try {
+        await sendEmailVerification(result.user, {
+          url: 'https://libocculus.netlify.app',
+          handleCodeInApp: false
+        });
+
+        console.log('✅ sendEmailVerification çağrısı başarılı');
+        console.log('📬 Mail gönderildi:', result.user.email);
+      } catch (emailError) {
+        console.error('❌ Email gönderme hatası:', emailError);
+        console.error('Error code:', emailError.code);
+        console.error('Error message:', emailError.message);
+        throw emailError;
+      }
 
       // Firestore'a kullanıcı bilgilerini kaydet
+      console.log('🔵 Firestore kaydı oluşturuluyor...');
+      
       await setDoc(doc(db, 'users', result.user.uid), {
         email: result.user.email,
         studentId: email.split('@')[0].substring(1),
@@ -63,11 +77,14 @@ export const useAuth = () => {
 
       // ✅ Kullanıcıyı çıkış yaptır (email doğrulanmadan giriş yapmasın)
       await signOut(auth);
+      console.log('✅ Kullanıcı çıkış yaptırıldı');
 
-      setSuccess('Kayıt başarılı! E-posta adresinize gelen doğrulama linkine tıklayın.');
+      setSuccess(`Kayıt başarılı! ${email} adresine doğrulama linki gönderildi. Lütfen mailinizi kontrol edin.`);
       return result.user;
     } catch (err) {
       console.error('❌ Register error:', err);
+      console.error('Error code:', err.code);
+      console.error('Error message:', err.message);
 
       let errorMessage = 'Kayıt başarısız. Lütfen tekrar deneyin.';
 
@@ -77,6 +94,8 @@ export const useAuth = () => {
         errorMessage = 'Şifre çok zayıf. En az 6 karakter kullanın.';
       } else if (err.code === 'auth/invalid-email') {
         errorMessage = 'Geçersiz e-posta adresi.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = 'Çok fazla istek. Lütfen birkaç dakika bekleyin.';
       } else if (err.message) {
         errorMessage = err.message;
       }
@@ -95,23 +114,23 @@ export const useAuth = () => {
     setSuccess('');
 
     try {
-      // Email validasyonu
       if (!email.endsWith('@metu.edu.tr')) {
         throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
       }
 
       console.log('🔵 Giriş yapılıyor...');
+      console.log('📧 Email:', email);
 
-      // Firebase Auth ile giriş
       const result = await signInWithEmailAndPassword(auth, email, password);
 
       console.log('✅ Firebase Auth girişi başarılı');
-      console.log('🔵 Email doğrulandı mı?', result.user.emailVerified);
+      console.log('👤 User UID:', result.user.uid);
+      console.log('✉️ Email Verified:', result.user.emailVerified);
 
       // ✅ Email doğrulaması kontrolü
       if (!result.user.emailVerified) {
         console.log('❌ Email doğrulanmamış!');
-        await signOut(auth); // Çıkış yaptır
+        await signOut(auth);
         throw new Error('E-posta adresiniz doğrulanmamış. Lütfen mailinizi kontrol edin ve doğrulama linkine tıklayın.');
       }
 
@@ -175,6 +194,8 @@ export const useAuth = () => {
     try {
       const user = auth.currentUser;
 
+      console.log('🔵 Mevcut kullanıcı:', user);
+
       if (!user) {
         throw new Error('Lütfen önce kayıt olun');
       }
@@ -183,10 +204,14 @@ export const useAuth = () => {
         throw new Error('E-posta adresiniz zaten doğrulanmış. Giriş yapabilirsiniz.');
       }
 
+      console.log('🔵 Doğrulama maili tekrar gönderiliyor...');
+
       await sendEmailVerification(user, {
-        url: window.location.origin,
+        url: 'https://libocculus.netlify.app',
         handleCodeInApp: false
       });
+
+      console.log('✅ Doğrulama maili tekrar gönderildi');
 
       setSuccess('Doğrulama maili tekrar gönderildi! Lütfen mailinizi kontrol edin.');
       return true;
