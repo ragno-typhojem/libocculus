@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { auth } from './firebase/config';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import LoginScreen from './components/LoginScreen';
-import VerifyEmail from './components/VerifyEmail';  // ✅ components'ten import
 import LibocculusApp from './LibocculusApp';
 import { Loader2 } from 'lucide-react';
 
@@ -25,7 +24,6 @@ function App() {
           path="/" 
           element={user ? <Navigate to="/dashboard" /> : <LoginScreen />} 
         />
-        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route 
           path="/dashboard" 
           element={user ? <LibocculusApp /> : <Navigate to="/" />} 
@@ -35,4 +33,4 @@ function App() {
   );
 }
 
-export default App;
+export default App();

@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { auth, db } from '../firebase/config';
 import { 
-  sendSignInLinkToEmail, 
-  isSignInWithEmailLink, 
-  signInWithEmailLink 
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signOut
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
@@ -12,156 +14,66 @@ export const useAuth = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const sendLoginEmail = async (email) => {
+  // ✅ Kayıt ol + Email doğrulama gönder
+  const register = async (email, password) => {
     setLoading(true);
     setError('');
     setSuccess('');
 
-    console.log('🔵 Mail gönderme başladı:', email);
-
     try {
-      // Email validasyonu
       if (!email.endsWith('@metu.edu.tr')) {
         throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
       }
 
-      // ✅ Dokümantasyona göre actionCodeSettings
-      const actionCodeSettings = {
-        // ✅ Tam URL (protocol dahil)
-        url: 'https://libocculus.netlify.app/verify-email',
-        // ✅ Uygulamada işlenecek
-        handleCodeInApp: true,
-        // ✅ iOS ayarları (opsiyonel)
-        iOS: {
-          bundleId: 'com.libocculus.app'
-        },
-        // ✅ Android ayarları (opsiyonel)
-        android: {
-          packageName: 'com.libocculus.app',
-          installApp: true,
-          minimumVersion: '12'
-        },
-        // ✅ Dynamic Link domain (eğer varsa)
-        // dynamicLinkDomain: 'libocculus.page.link'
-      };
-
-      console.log('🔵 sendSignInLinkToEmail çağrılıyor...');
-      console.log('🔵 Email:', email);
-      console.log('🔵 Settings:', actionCodeSettings);
-
-      // ✅ Firebase'e mail gönder
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      
-      console.log('✅ Firebase mail gönderdi!');
-      
-      // ✅ Email'i localStorage'a kaydet (önemli!)
-      window.localStorage.setItem('emailForSignIn', email);
-      
-      setSuccess('Doğrulama linki e-posta adresinize gönderildi! Lütfen mailinizi kontrol edin.');
-      return true;
-    } catch (err) {
-      console.error('❌ Hata:', err);
-      console.error('❌ Hata kodu:', err.code);
-      console.error('❌ Hata mesajı:', err.message);
-      
-      // ✅ Kullanıcı dostu hata mesajları
-      let errorMessage = 'E-posta gönderilemedi. Lütfen tekrar deneyin.';
-      
-      if (err.code === 'auth/invalid-email') {
-        errorMessage = 'Geçersiz e-posta adresi.';
-      } else if (err.code === 'auth/unauthorized-continue-uri') {
-        errorMessage = 'Domain yetkilendirilmemiş. Lütfen yöneticiyle iletişime geçin.';
-      } else if (err.code === 'auth/invalid-continue-uri') {
-        errorMessage = 'Geçersiz yönlendirme URL\'si.';
-      } else if (err.code === 'auth/missing-continue-uri') {
-        errorMessage = 'Yönlendirme URL\'si eksik.';
-      }
-      
-      setError(errorMessage);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyEmailLink = async () => {
-    setLoading(true);
-    setError('');
-
-    console.log('🔵 Email doğrulama başladı');
-    console.log('🔵 URL:', window.location.href);
-
-    try {
-      // ✅ URL'de email link var mı kontrol et
-      if (!isSignInWithEmailLink(auth, window.location.href)) {
-        console.log('❌ Geçersiz email link');
-        throw new Error('Geçersiz doğrulama linki');
+      if (password.length < 6) {
+        throw new Error('Şifre en az 6 karakter olmalıdır');
       }
 
-      console.log('✅ Geçerli email link bulundu');
-
-      // ✅ Email'i localStorage'dan al
-      let email = window.localStorage.getItem('emailForSignIn');
-      console.log('🔵 localStorage email:', email);
+      console.log('🔵 Kullanıcı oluşturuluyor...');
       
-      // ✅ Eğer yoksa kullanıcıdan iste
-      if (!email) {
-        console.log('⚠️ Email localStorage\'da yok, kullanıcıdan isteniyor');
-        email = window.prompt('Lütfen doğrulama için e-posta adresinizi girin');
-      }
-
-      // ✅ Email validasyonu
-      if (!email || !email.endsWith('@metu.edu.tr')) {
-        throw new Error('Geçerli bir ODTÜ e-posta adresi gerekli');
-      }
-
-      console.log('🔵 signInWithEmailLink çağrılıyor...');
+      // Kullanıcı oluştur
+      const result = await createUserWithEmailAndPassword(auth, email, password);
       
-      // ✅ Email link ile giriş yap
-      const result = await signInWithEmailLink(auth, email, window.location.href);
+      console.log('✅ Kullanıcı oluşturuldu:', result.user.email);
       
-      console.log('✅ Giriş başarılı!');
-      console.log('✅ User:', result.user.email);
+      // ✅ Email doğrulama maili gönder
+      console.log('🔵 Doğrulama maili gönderiliyor...');
+      await sendEmailVerification(result.user, {
+        url: 'https://libocculus.netlify.app/', // Doğrulama sonrası yönlendirilecek URL
+        handleCodeInApp: false
+      });
       
-      // ✅ Kullanıcı verisini Firestore'a kaydet
-      const userRef = doc(db, 'users', result.user.uid);
-      const userSnap = await getDoc(userRef);
+      console.log('✅ Doğrulama maili gönderildi');
+      
+      // Firestore'a kaydet
+      await setDoc(doc(db, 'users', result.user.uid), {
+        email: result.user.email,
+        studentId: email.split('@')[0].substring(1),
+        points: 0,
+        totalContributions: 0,
+        emailVerified: false,
+        createdAt: new Date(),
+        lastLogin: new Date()
+      });
+      
+      console.log('✅ Firestore kaydı oluşturuldu');
 
-      if (!userSnap.exists()) {
-        console.log('🔵 Yeni kullanıcı oluşturuluyor...');
-        await setDoc(userRef, {
-          email: result.user.email,
-          studentId: email.split('@')[0].substring(1), // e1234567 -> 1234567
-          points: 0,
-          totalContributions: 0,
-          createdAt: new Date(),
-          lastLogin: new Date()
-        });
-        console.log('✅ Kullanıcı oluşturuldu');
-      } else {
-        console.log('🔵 Mevcut kullanıcı güncelleniyor...');
-        await setDoc(userRef, {
-          lastLogin: new Date()
-        }, { merge: true });
-        console.log('✅ Kullanıcı güncellendi');
-      }
-
-      // ✅ localStorage'ı temizle
-      window.localStorage.removeItem('emailForSignIn');
+      // ✅ Kullanıcıyı çıkış yaptır (doğrulamadan giriş yapmasın)
+      await signOut(auth);
       
-      setSuccess('Giriş başarılı! Yönlendiriliyorsunuz...');
+      setSuccess('Kayıt başarılı! Lütfen e-posta adresinize gelen doğrulama linkine tıklayın.');
       return result.user;
     } catch (err) {
-      console.error('❌ Doğrulama hatası:', err);
-      console.error('❌ Hata kodu:', err.code);
-      console.error('❌ Hata mesajı:', err.message);
+      console.error('❌ Register error:', err);
       
-      let errorMessage = 'Doğrulama başarısız. Lütfen tekrar deneyin.';
+      let errorMessage = 'Kayıt başarısız. Lütfen tekrar deneyin.';
       
-      if (err.code === 'auth/invalid-action-code') {
-        errorMessage = 'Doğrulama linki geçersiz veya süresi dolmuş.';
-      } else if (err.code === 'auth/expired-action-code') {
-        errorMessage = 'Doğrulama linkinin süresi dolmuş. Yeni bir link isteyin.';
+      if (err.code === 'auth/email-already-in-use') {
+        errorMessage = 'Bu e-posta adresi zaten kullanımda.';
+      } else if (err.code === 'auth/weak-password') {
+        errorMessage = 'Şifre çok zayıf. En az 6 karakter kullanın.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz e-posta adresi.';
       }
       
       setError(errorMessage);
@@ -171,9 +83,134 @@ export const useAuth = () => {
     }
   };
 
+  // ✅ Giriş yap (email doğrulaması kontrol et)
+  const login = async (email, password) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (!email.endsWith('@metu.edu.tr')) {
+        throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
+      }
+
+      console.log('🔵 Giriş yapılıyor...');
+      
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      
+      console.log('✅ Firebase girişi başarılı');
+      console.log('🔵 Email doğrulandı mı?', result.user.emailVerified);
+
+      // ✅ Email doğrulaması kontrolü
+      if (!result.user.emailVerified) {
+        console.log('❌ Email doğrulanmamış!');
+        await signOut(auth); // Çıkış yaptır
+        throw new Error('E-posta adresiniz doğrulanmamış. Lütfen mailinizi kontrol edin.');
+      }
+      
+      console.log('✅ Email doğrulanmış, giriş başarılı');
+      
+      // Firestore'da email verified durumunu güncelle
+      await setDoc(doc(db, 'users', result.user.uid), {
+        emailVerified: true,
+        lastLogin: new Date()
+      }, { merge: true });
+
+      setSuccess('Giriş başarılı!');
+      return result.user;
+    } catch (err) {
+      console.error('❌ Login error:', err);
+      
+      let errorMessage = 'Giriş başarısız. Lütfen tekrar deneyin.';
+      
+      if (err.code === 'auth/user-not-found') {
+        errorMessage = 'Kullanıcı bulunamadı. Lütfen kayıt olun.';
+      } else if (err.code === 'auth/wrong-password') {
+        errorMessage = 'Hatalı şifre.';
+      } else if (err.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz e-posta adresi.';
+      } else if (err.code === 'auth/too-many-requests') {
+        errorMessage = 'Çok fazla başarısız deneme. Lütfen daha sonra tekrar deneyin.';
+      } else if (err.message.includes('doğrulanmamış')) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Doğrulama mailini tekrar gönder
+  const resendVerification = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const user = auth.currentUser;
+      
+      if (!user) {
+        throw new Error('Lütfen önce giriş yapın');
+      }
+
+      if (user.emailVerified) {
+        throw new Error('E-posta adresiniz zaten doğrulanmış');
+      }
+
+      await sendEmailVerification(user, {
+        url: 'https://libocculus.netlify.app/',
+        handleCodeInApp: false
+      });
+
+      setSuccess('Doğrulama maili tekrar gönderildi! Lütfen mailinizi kontrol edin.');
+      return true;
+    } catch (err) {
+      console.error('❌ Resend verification error:', err);
+      setError(err.message || 'Doğrulama maili gönderilemedi.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Şifre sıfırlama
+  const resetPassword = async (email) => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (!email.endsWith('@metu.edu.tr')) {
+        throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
+      }
+
+      await sendPasswordResetEmail(auth, email);
+      
+      setSuccess('Şifre sıfırlama linki e-posta adresinize gönderildi.');
+      return true;
+    } catch (err) {
+      console.error('❌ Reset password error:', err);
+      
+      let errorMessage = 'Şifre sıfırlama başarısız.';
+      
+      if (err.code === 'auth/user-not-found') {
+        errorMessage = 'Bu e-posta adresiyle kayıtlı kullanıcı bulunamadı.';
+      }
+      
+      setError(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return {
-    sendLoginEmail,
-    verifyEmailLink,
+    register,
+    login,
+    resendVerification,
+    resetPassword,
     loading,
     error,
     success
