@@ -50,7 +50,7 @@ exports.handler = async (event) => {
     console.log('📤 Resend.emails.send çağrılıyor...');
 
     const { data, error } = await resend.emails.send({
-      from: 'ODTÜ Libocculus <onboarding@resend.dev>',
+      from: 'ODTÜ Libocculus <ragnogamescorp@gmail.com>',
       to: [email],
       subject: '[ODTÜ] Doğrulama Kodu - Libocculus',
       html: `
