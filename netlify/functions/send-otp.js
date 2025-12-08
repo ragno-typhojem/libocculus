@@ -1,7 +1,5 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -9,6 +7,7 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
 
+  // CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
@@ -22,9 +21,22 @@ exports.handler = async (event) => {
   }
 
   try {
+    // ✅ API Key kontrolü
+    const apiKey = process.env.RESEND_API_KEY;
+    
+    console.log('🔑 API Key var mı?', apiKey ? 'Evet' : 'Hayır');
+    console.log('🔑 API Key ilk 10 karakter:', apiKey ? apiKey.substring(0, 10) : 'YOK');
+
+    if (!apiKey) {
+      throw new Error('RESEND_API_KEY environment variable tanımlı değil');
+    }
+
+    const resend = new Resend(apiKey);
+
     const { email, otp } = JSON.parse(event.body);
 
-    console.log('📧 OTP gönderiliyor:', email, 'OTP:', otp);
+    console.log('📧 Email:', email);
+    console.log('🔢 OTP:', otp);
 
     if (!email || !otp) {
       return {
@@ -34,10 +46,12 @@ exports.handler = async (event) => {
       };
     }
 
-    // Email gönder
-    const data = await resend.emails.send({
+    // ✅ Email gönder
+    console.log('📤 Resend.emails.send çağrılıyor...');
+
+    const { data, error } = await resend.emails.send({
       from: 'ODTÜ Libocculus <onboarding@resend.dev>',
-      to: email,
+      to: [email],
       subject: '[ODTÜ] Doğrulama Kodu - Libocculus',
       html: `
         <!DOCTYPE html>
@@ -193,7 +207,12 @@ exports.handler = async (event) => {
       `
     });
 
-    console.log('✅ Email gönderildi:', data);
+    if (error) {
+      console.error('❌ Resend error:', error);
+      throw new Error(error.message || 'Email gönderilemedi');
+    }
+
+    console.log('✅ Email başarıyla gönderildi:', data);
 
     return {
       statusCode: 200,
@@ -201,14 +220,14 @@ exports.handler = async (event) => {
       body: JSON.stringify({ success: true, data })
     };
 
-  } catch (error) {
-    console.error('❌ Send email error:', error);
+  } catch (err) {
+    console.error('❌ Function error:', err);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error.message,
-        details: error.response?.body || error
+        error: err.message,
+        stack: err.stack
       })
     };
   }
