@@ -13,37 +13,35 @@ export const useAuth = () => {
   const [success, setSuccess] = useState('');
 
   // Email doğrulama linki gönder
-  const sendLoginEmail = async (email) => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+ const sendLoginEmail = async (email) => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    try {
-      // ODTÜ mail kontrolü
-      if (!email.endsWith('@metu.edu.tr')) {
-        throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
-      }
-
-      const actionCodeSettings = {
-        url: window.location.origin + '/verify-email',
-        handleCodeInApp: true,
-      };
-
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-      
-      // Email'i localStorage'a kaydet (doğrulama için gerekli)
-      window.localStorage.setItem('emailForSignIn', email);
-      
-      setSuccess('Doğrulama linki e-posta adresinize gönderildi! Lütfen mailinizi kontrol edin.');
-      return true;
-    } catch (err) {
-      console.error('Login email error:', err);
-      setError(err.message || 'E-posta gönderilemedi. Lütfen tekrar deneyin.');
-      return false;
-    } finally {
-      setLoading(false);
+  try {
+    if (!email.endsWith('@metu.edu.tr')) {
+      throw new Error('Lütfen ODTÜ e-posta adresinizi kullanın (@metu.edu.tr)');
     }
-  };
+
+    const actionCodeSettings = {
+      url: 'https://libocculus.netlify.app/verify-email',  // ✅ Tam URL
+      handleCodeInApp: true,
+    };
+
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    
+    window.localStorage.setItem('emailForSignIn', email);
+    
+    setSuccess('Doğrulama linki e-posta adresinize gönderildi! Lütfen mailinizi kontrol edin.');
+    return true;
+  } catch (err) {
+    console.error('Login email error:', err);
+    setError(err.message || 'E-posta gönderilemedi. Lütfen tekrar deneyin.');
+    return false;
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Email linkinden giriş yap
   const verifyEmailLink = async () => {
