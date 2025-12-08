@@ -11,7 +11,7 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 via-white to-orange-50">
         <Loader2 className="w-12 h-12 animate-spin text-red-600" />
       </div>
     );
@@ -33,4 +33,4 @@ function App() {
   );
 }
 
-export default App();
+export default App; // ✅ () kaldırıldı
