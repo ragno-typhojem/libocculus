@@ -12,7 +12,7 @@ export const useAuth = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // ✅ OTP Gönder (Resend ile)
+  // ✅ OTP Gönder (SendGrid ile)
   const sendOTP = async (email) => {
     setLoading(true);
     setError('');
@@ -40,8 +40,8 @@ export const useAuth = () => {
 
       console.log('✅ OTP Firestore\'a kaydedildi:', otp);
 
-      // ✅ Resend ile email gönder
-      console.log('🔵 Email gönderiliyor (Resend)...');
+      // ✅ SendGrid ile email gönder
+      console.log('🔵 Email gönderiliyor (SendGrid)...');
 
       const response = await fetch('/.netlify/functions/send-otp', {
         method: 'POST',
