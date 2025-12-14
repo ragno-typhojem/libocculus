@@ -1,4 +1,4 @@
-const { Resend } = require('resend');
+const sgMail = require('@sendgrid/mail');
 
 exports.handler = async (event) => {
   const headers = {
@@ -21,17 +21,16 @@ exports.handler = async (event) => {
   }
 
   try {
-    // ✅ API Key kontrolü
-    const apiKey = process.env.RESEND_API_KEY;
+    // ✅ SendGrid API Key
+    const apiKey = process.env.SENDGRID_API_KEY;
     
-    console.log('🔑 API Key var mı?', apiKey ? 'Evet' : 'Hayır');
-    console.log('🔑 API Key ilk 10 karakter:', apiKey ? apiKey.substring(0, 10) : 'YOK');
+    console.log('🔑 SendGrid API Key var mı?', apiKey ? 'Evet' : 'Hayır');
 
     if (!apiKey) {
-      throw new Error('RESEND_API_KEY environment variable tanımlı değil');
+      throw new Error('SENDGRID_API_KEY environment variable tanımlı değil');
     }
 
-    const resend = new Resend(apiKey);
+    sgMail.setApiKey(apiKey);
 
     const { email, otp } = JSON.parse(event.body);
 
@@ -47,11 +46,11 @@ exports.handler = async (event) => {
     }
 
     // ✅ Email gönder
-    console.log('📤 Resend.emails.send çağrılıyor...');
+    console.log('📤 SendGrid ile email gönderiliyor...');
 
-    const { data, error } = await resend.emails.send({
-      from: 'ODTÜ Libocculus <ragnogamescorp@gmail.com>',
-      to: [email],
+    const msg = {
+      to: email,
+      from: 'berkegamer415@gmail.com', // ✅ SendGrid'de verify ettiğin sender
       subject: '[ODTÜ] Doğrulama Kodu - Libocculus',
       html: `
         <!DOCTYPE html>
@@ -205,19 +204,16 @@ exports.handler = async (event) => {
         </body>
         </html>
       `
-    });
+    };
 
-    if (error) {
-      console.error('❌ Resend error:', error);
-      throw new Error(error.message || 'Email gönderilemedi');
-    }
+    await sgMail.send(msg);
 
-    console.log('✅ Email başarıyla gönderildi:', data);
+    console.log('✅ Email başarıyla gönderildi');
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, data })
+      body: JSON.stringify({ success: true, message: 'Email gönderildi' })
     };
 
   } catch (err) {
@@ -226,8 +222,7 @@ exports.handler = async (event) => {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: err.message,
-        stack: err.stack
+        error: err.message || 'Email gönderilemedi'
       })
     };
   }
