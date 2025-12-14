@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     const msg = {
       to: email,
       from: 'berkegamer415@gmail.com', // ✅ SendGrid'de verify ettiğin sender
-      subject: '[ODTÜ] Doğrulama Kodu - Libocculus',
+      subject: '[Uygulama] Doğrulama Kodu - Libocculus',
       html: `
         <!DOCTYPE html>
         <html>
