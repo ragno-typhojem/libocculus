@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UtensilsCrossed, Gift, MapPin, Award, Clock, TrendingUp, QrCode as QrCodeIcon, LogOut, AlertCircle, CheckCircle, Loader2, History, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
+import { db } from './firebase/config';
+import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const LibocculusApp = () => {
   // Auth States
@@ -212,63 +214,148 @@ const LibocculusApp = () => {
     setTotalContributions(0);
   };
 
-  const handleSubmitData = async () => {
-    if (!canSubmit()) {
-      setError(`${getTimeUntilNextSubmit()} sonra tekrar gönderebilirsiniz`);
-      return;
+const handleSubmitData = async () => {
+  if (!canSubmit()) {
+    setError(`${getTimeUntilNextSubmit()} sonra tekrar gönderebilirsiniz`);
+    return;
+  }
+
+  setLoading(true);
+  
+  try {
+    let latitude = null;
+    let longitude = null;
+
+    // ✅ Konum izni kontrolü
+    if (!navigator.geolocation) {
+      throw new Error('Tarayıcınız konum özelliğini desteklemiyor');
     }
 
-    setLoading(true);
-    
+    // ✅ Konum iznini kontrol et
     try {
-      // Get location automatically
-      // eslint-disable-next-line no-unused-vars
-      const position = await new Promise((resolve, reject) => { 
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
+      const permission = await navigator.permissions.query({ name: 'geolocation' });
+      
+      if (permission.state === 'denied') {
+        throw new Error('Konum izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini açın.');
+      }
+
+      // ✅ Konum al (daha uzun timeout)
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          (error) => {
+            if (error.code === 1) {
+              reject(new Error('Konum izni reddedildi'));
+            } else if (error.code === 2) {
+              reject(new Error('Konum bilgisi alınamadı'));
+            } else if (error.code === 3) {
+              reject(new Error('Konum alma zaman aşımına uğradı'));
+            } else {
+              reject(new Error('Konum alınamadı'));
+            }
+          },
+          {
+            enableHighAccuracy: false, // ✅ Daha hızlı
+            timeout: 15000, // ✅ 15 saniye
+            maximumAge: 60000 // ✅ 1 dakika cache
+          }
+        );
       });
 
-      // Validate based on active tab
-      if (activeTab === 'library') {
-        if (!selectedFloor || !occupancyValue) {
-          throw new Error('Lütfen tüm alanları doldurun');
-        }
-      } else if (activeTab === 'cafeteria') {
-        if (!selectedCafeteria || !queueStatus) {
-          throw new Error('Lütfen tüm alanları doldurun');
-        }
+      latitude = position.coords.latitude;
+      longitude = position.coords.longitude;
+
+      console.log('✅ Konum alındı:', latitude, longitude);
+
+    } catch (locationError) {
+      console.warn('⚠️ Konum alınamadı, varsayılan konum kullanılıyor:', locationError.message);
+      
+      // ✅ Konum alınamazsa varsayılan ODTÜ koordinatları
+      latitude = 39.8917;
+      longitude = 32.7806;
+      
+      setError('⚠️ Konum alınamadı, varsayılan konum kullanıldı. Veri yine de gönderildi.');
+    }
+
+    // Validation
+    if (activeTab === 'library') {
+      if (!selectedFloor || !occupancyValue) {
+        throw new Error('Lütfen tüm alanları doldurun');
       }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newPoints = points + 10;
-      const newContributions = totalContributions + 1;
-      const submitTime = Date.now();
-      
-      setPoints(newPoints);
-      setTotalContributions(newContributions);
-      setLastSubmitTime(submitTime);
-      localStorage.setItem('libocculus_last_submit', submitTime.toString());
-      
-      setSuccess('Veri gönderildi! +10 puan kazandınız 🎉');
-      
-      setSelectedFloor('');
-      setOccupancyValue('');
-      setSelectedCafeteria('');
-      setQueueStatus('');
-    } catch (err) {
-      if (err.message.includes('tüm alanları')) {
-        setError(err.message);
-      } else {
-        setError('Konum alınamadı. Lütfen konum izni verin ve tekrar deneyin.');
+      // Firestore'a kaydet
+      await addDoc(collection(db, 'library_data'), {
+        floor: selectedFloor,
+        occupancy: parseInt(occupancyValue),
+        userId: user.uid,
+        userEmail: user.email,
+        latitude,
+        longitude,
+        timestamp: serverTimestamp()
+      });
+
+    } else if (activeTab === 'cafeteria') {
+      if (!selectedCafeteria || !queueStatus) {
+        throw new Error('Lütfen tüm alanları doldurun');
       }
-    } finally {
-      setLoading(false);
+
+      // Firestore'a kaydet
+      await addDoc(collection(db, 'cafeteria_data'), {
+        location: selectedCafeteria,
+        queueStatus,
+        occupancy: queueStatus === 'Kısa' ? 30 : queueStatus === 'Orta' ? 60 : 90,
+        userId: user.uid,
+        userEmail: user.email,
+        latitude,
+        longitude,
+        timestamp: serverTimestamp()
+      });
     }
-  };
+
+    // Kullanıcı puanını güncelle
+    const newPoints = points + 10;
+    const newContributions = totalContributions + 1;
+
+    await setDoc(doc(db, 'users', user.uid), {
+      points: newPoints,
+      totalContributions: newContributions,
+      lastSubmit: serverTimestamp()
+    }, { merge: true });
+
+    const submitTime = Date.now();
+    setPoints(newPoints);
+    setTotalContributions(newContributions);
+    setLastSubmitTime(submitTime);
+    localStorage.setItem('libocculus_last_submit', submitTime.toString());
+    
+    setSuccess('Veri gönderildi! +10 puan kazandınız 🎉');
+    
+    // Form temizle
+    setSelectedFloor('');
+    setOccupancyValue('');
+    setSelectedCafeteria('');
+    setQueueStatus('');
+
+    // Verileri yeniden çek
+    setTimeout(() => {
+      window.location.reload();
+    }, 1500);
+
+  } catch (err) {
+    console.error('❌ Submit error:', err);
+    
+    if (err.message.includes('tüm alanları')) {
+      setError(err.message);
+    } else if (err.message.includes('Konum')) {
+      setError(err.message);
+    } else {
+      setError('Veri gönderilemedi. Lütfen tekrar deneyin.');
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleRedeemReward = async (reward) => {
     if (points < reward.points) {
