@@ -6,7 +6,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { db } from './firebase/config';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const LibocculusApp = () => {
+const LibocculusApp = ({user}) => {
   // Auth States
   const [authMode, setAuthMode] = useState('login');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -205,14 +205,15 @@ const LibocculusApp = () => {
       setLoading(false);
     }
   };
-
-  const handleLogout = () => {
-    localStorage.removeItem('libocculus_auth');
-    setIsAuthenticated(false);
-    setUser(null);
-    setPoints(0);
-    setTotalContributions(0);
-  };
+const handleLogout = async () => {
+  try {
+    await signOut(auth);
+    localStorage.removeItem('libocculus_last_submit');
+  } catch (err) {
+    console.error('Logout error:', err);
+    setError('Çıkış yapılamadı');
+  }
+};
 
 const handleSubmitData = async () => {
   if (!canSubmit()) {

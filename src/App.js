@@ -26,11 +26,11 @@ function App() {
         />
         <Route 
           path="/dashboard" 
-          element={user ? <LibocculusApp /> : <Navigate to="/" />} 
+          element={user ? <LibocculusApp user={user} /> : <Navigate to="/" />}  {/* ✅ user prop eklendi */}
         />
       </Routes>
     </BrowserRouter>
   );
 }
 
-export default App; 
+export default App;
