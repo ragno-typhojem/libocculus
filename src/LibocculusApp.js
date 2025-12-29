@@ -3,17 +3,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BookOpen, UtensilsCrossed, Gift, MapPin, Award, Clock, TrendingUp, QrCode as QrCodeIcon, LogOut, AlertCircle, CheckCircle, Loader2, History, X } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { QRCodeSVG } from 'qrcode.react';
-import { db } from './firebase/config';
+import { auth, db } from './firebase/config';
+import { signOut } from 'firebase/auth';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const LibocculusApp = ({user}) => {
-  // Auth States
+const LibocculusApp = ({ user: authUser }) => {
+  // Auth States - SİLİNDİ
   const [authMode, setAuthMode] = useState('login');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  // const [user, setUser] = useState(null); // ❌ SİLİNDİ
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
 
   // Form States
   const [email, setEmail] = useState('');
@@ -288,8 +290,8 @@ const handleSubmitData = async () => {
       await addDoc(collection(db, 'library_data'), {
         floor: selectedFloor,
         occupancy: parseInt(occupancyValue),
-        userId: user.uid,
-        userEmail: user.email,
+        userId: authUser.uid,
+        userEmail: authUser.email,
         latitude,
         longitude,
         timestamp: serverTimestamp()
@@ -305,8 +307,8 @@ const handleSubmitData = async () => {
         location: selectedCafeteria,
         queueStatus,
         occupancy: queueStatus === 'Kısa' ? 30 : queueStatus === 'Orta' ? 60 : 90,
-        userId: user.uid,
-        userEmail: user.email,
+        userId: authUser.uid,
+        userEmail: authUser.email,
         latitude,
         longitude,
         timestamp: serverTimestamp()
@@ -317,7 +319,7 @@ const handleSubmitData = async () => {
     const newPoints = points + 10;
     const newContributions = totalContributions + 1;
 
-    await setDoc(doc(db, 'users', user.uid), {
+    await setDoc(doc(db, 'users', authUser.uid), {
       points: newPoints,
       totalContributions: newContributions,
       lastSubmit: serverTimestamp()
