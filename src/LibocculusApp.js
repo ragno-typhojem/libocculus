@@ -8,31 +8,16 @@ import { signOut } from 'firebase/auth';
 import { collection, addDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const LibocculusApp = ({ user: authUser }) => {
-  // Auth States - SİLİNDİ
-  const [authMode, setAuthMode] = useState('login');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  // const [user, setUser] = useState(null); // ❌ SİLİNDİ
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-
-
-  // Form States
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [studentId, setStudentId] = useState('');
-
-  // App States
   const [activeTab, setActiveTab] = useState('library');
   const [showRewards, setShowRewards] = useState(false);
   const [showMyRewards, setShowMyRewards] = useState(false);
   const [selectedReward, setSelectedReward] = useState(null);
   const [showQR, setShowQR] = useState(false);
   const [lastSubmitTime, setLastSubmitTime] = useState(null);
-
-  // Data States
-  // eslint-disable-next-line no-unused-vars
-  const [libraryData, setLibraryData] = useState({ 
+  const [libraryData] = useState({ 
     '1B': { occupancy: 45, lastUpdated: new Date() },
     '2B': { occupancy: 67, lastUpdated: new Date() },
     '3B': { occupancy: 82, lastUpdated: new Date() },
@@ -41,13 +26,11 @@ const LibocculusApp = ({ user: authUser }) => {
     '3A': { occupancy: 71, lastUpdated: new Date() },
     'SESLİ': { occupancy: 89, lastUpdated: new Date() }
   });
-// eslint-disable-next-line no-unused-vars
-  const [cafeteriaData, setCafeteriaData] = useState({ 
+  const [cafeteriaData] = useState({ 
     'ÜST_KAT': { occupancy: 72, queueStatus: 'Orta', lastUpdated: new Date() },
     'ALT_KAT': { occupancy: 58, queueStatus: 'Kısa', lastUpdated: new Date() }
   });
-// eslint-disable-next-line no-unused-vars
-  const [rewards, setRewards] = useState([ 
+  const [rewards] = useState([ 
     { id: 1, name: 'Çatı Cafe - Kahve', points: 50, venue: 'Çatı', icon: '☕', available: true },
     { id: 2, name: 'Yemekhane - Tatlı', points: 30, venue: 'Yemekhane', icon: '🍰', available: true },
     { id: 3, name: 'Zeynel - Sandviç', points: 40, venue: 'Zeynel', icon: '🥪', available: true },
@@ -55,47 +38,21 @@ const LibocculusApp = ({ user: authUser }) => {
     { id: 5, name: 'Yemekhane - İçecek', points: 20, venue: 'Yemekhane', icon: '🥤', available: true },
     { id: 6, name: 'Zeynel - Tost', points: 35, venue: 'Zeynel', icon: '🥙', available: true }
   ]);
-
   const [myRedemptions, setMyRedemptions] = useState([]);
   const [points, setPoints] = useState(125);
   const [totalContributions, setTotalContributions] = useState(47);
-
-  // Submission States
   const [selectedFloor, setSelectedFloor] = useState('');
   const [occupancyValue, setOccupancyValue] = useState('');
   const [selectedCafeteria, setSelectedCafeteria] = useState('');
   const [queueStatus, setQueueStatus] = useState('');
 
-  // Check auth on mount
   useEffect(() => {
-    const savedAuth = localStorage.getItem('libocculus_auth');
     const savedLastSubmit = localStorage.getItem('libocculus_last_submit');
-    
-    if (savedAuth) {
-      const authData = JSON.parse(savedAuth);
-      setUser(authData.user);
-      setPoints(authData.points);
-      setTotalContributions(authData.totalContributions);
-      setIsAuthenticated(true);
-    }
-    
     if (savedLastSubmit) {
       setLastSubmitTime(parseInt(savedLastSubmit));
     }
   }, []);
 
-  // Save auth to localStorage
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      localStorage.setItem('libocculus_auth', JSON.stringify({
-        user,
-        points,
-        totalContributions
-      }));
-    }
-  }, [isAuthenticated, user, points, totalContributions]);
-
-  // Clear messages after 3 seconds
   useEffect(() => {
     if (error) {
       const timer = setTimeout(() => setError(''), 3000);
@@ -110,7 +67,6 @@ const LibocculusApp = ({ user: authUser }) => {
     }
   }, [success]);
 
-  // Check if can submit
   const canSubmit = () => {
     if (!lastSubmitTime) return true;
     const oneHour = 60 * 60 * 1000;
@@ -126,239 +82,107 @@ const LibocculusApp = ({ user: authUser }) => {
     return `${minutes} dakika`;
   };
 
-  // Auth Functions
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      localStorage.removeItem('libocculus_last_submit');
+    } catch (err) {
+      console.error('Logout error:', err);
+      setError('Çıkış yapılamadı');
+    }
+  };
+
+  const handleSubmitData = async () => {
+    if (!canSubmit()) {
+      setError(`${getTimeUntilNextSubmit()} sonra tekrar gönderebilirsiniz`);
+      return;
+    }
+
     setLoading(true);
-    setError('');
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (!email.endsWith('@metu.edu.tr')) {
-        throw new Error('ODTÜ e-posta adresi kullanmalısınız');
+      let latitude = 39.8917;
+      let longitude = 32.7806;
+
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 15000,
+              maximumAge: 60000
+            });
+          });
+          latitude = position.coords.latitude;
+          longitude = position.coords.longitude;
+        } catch (err) {
+          console.warn('Konum alınamadı, varsayılan kullanılıyor');
+        }
       }
 
-      const userData = {
-        email,
-        studentId: '1234567',
-        points: 125,
-        totalContributions: 47
-      };
+      if (activeTab === 'library') {
+        if (!selectedFloor || !occupancyValue) {
+          throw new Error('Lütfen tüm alanları doldurun');
+        }
 
-      setUser(userData);
-      setPoints(userData.points);
-      setTotalContributions(userData.totalContributions);
-      setIsAuthenticated(true);
-      setSuccess('Giriş başarılı!');
+        await addDoc(collection(db, 'library_data'), {
+          floor: selectedFloor,
+          occupancy: parseInt(occupancyValue),
+          userId: authUser.uid,
+          userEmail: authUser.email,
+          latitude,
+          longitude,
+          timestamp: serverTimestamp()
+        });
+      } else if (activeTab === 'cafeteria') {
+        if (!selectedCafeteria || !queueStatus) {
+          throw new Error('Lütfen tüm alanları doldurun');
+        }
+
+        await addDoc(collection(db, 'cafeteria_data'), {
+          location: selectedCafeteria,
+          queueStatus,
+          occupancy: queueStatus === 'Kısa' ? 30 : queueStatus === 'Orta' ? 60 : 90,
+          userId: authUser.uid,
+          userEmail: authUser.email,
+          latitude,
+          longitude,
+          timestamp: serverTimestamp()
+        });
+      }
+
+      const newPoints = points + 10;
+      const newContributions = totalContributions + 1;
+
+      await setDoc(doc(db, 'users', authUser.uid), {
+        points: newPoints,
+        totalContributions: newContributions,
+        lastSubmit: serverTimestamp()
+      }, { merge: true });
+
+      const submitTime = Date.now();
+      setPoints(newPoints);
+      setTotalContributions(newContributions);
+      setLastSubmitTime(submitTime);
+      localStorage.setItem('libocculus_last_submit', submitTime.toString());
+      
+      setSuccess('Veri gönderildi! +10 puan kazandınız 🎉');
+      
+      setSelectedFloor('');
+      setOccupancyValue('');
+      setSelectedCafeteria('');
+      setQueueStatus('');
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
     } catch (err) {
-      setError(err.message);
+      console.error('Submit error:', err);
+      setError(err.message || 'Veri gönderilemedi');
     } finally {
       setLoading(false);
     }
   };
-
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (!email.endsWith('@metu.edu.tr')) {
-        throw new Error('ODTÜ e-posta adresi kullanmalısınız');
-      }
-
-      if (studentId.length !== 7) {
-        throw new Error('Öğrenci numarası 7 haneli olmalıdır');
-      }
-
-      if (password.length < 6) {
-        throw new Error('Şifre en az 6 karakter olmalıdır');
-      }
-
-      setSuccess('Kayıt başarılı! Giriş yapabilirsiniz.');
-      setAuthMode('login');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (!email.endsWith('@metu.edu.tr')) {
-        throw new Error('ODTÜ e-posta adresi kullanmalısınız');
-      }
-
-      setSuccess('Şifre sıfırlama bağlantısı e-posta adresinize gönderildi!');
-      setTimeout(() => setAuthMode('login'), 2000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-const handleLogout = async () => {
-  try {
-    await signOut(auth);
-    localStorage.removeItem('libocculus_last_submit');
-  } catch (err) {
-    console.error('Logout error:', err);
-    setError('Çıkış yapılamadı');
-  }
-};
-
-const handleSubmitData = async () => {
-  if (!canSubmit()) {
-    setError(`${getTimeUntilNextSubmit()} sonra tekrar gönderebilirsiniz`);
-    return;
-  }
-
-  setLoading(true);
-  
-  try {
-    let latitude = null;
-    let longitude = null;
-
-    // ✅ Konum izni kontrolü
-    if (!navigator.geolocation) {
-      throw new Error('Tarayıcınız konum özelliğini desteklemiyor');
-    }
-
-    // ✅ Konum iznini kontrol et
-    try {
-      const permission = await navigator.permissions.query({ name: 'geolocation' });
-      
-      if (permission.state === 'denied') {
-        throw new Error('Konum izni reddedildi. Lütfen tarayıcı ayarlarından konum iznini açın.');
-      }
-
-      // ✅ Konum al (daha uzun timeout)
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(
-          resolve,
-          (error) => {
-            if (error.code === 1) {
-              reject(new Error('Konum izni reddedildi'));
-            } else if (error.code === 2) {
-              reject(new Error('Konum bilgisi alınamadı'));
-            } else if (error.code === 3) {
-              reject(new Error('Konum alma zaman aşımına uğradı'));
-            } else {
-              reject(new Error('Konum alınamadı'));
-            }
-          },
-          {
-            enableHighAccuracy: false, // ✅ Daha hızlı
-            timeout: 15000, // ✅ 15 saniye
-            maximumAge: 60000 // ✅ 1 dakika cache
-          }
-        );
-      });
-
-      latitude = position.coords.latitude;
-      longitude = position.coords.longitude;
-
-      console.log('✅ Konum alındı:', latitude, longitude);
-
-    } catch (locationError) {
-      console.warn('⚠️ Konum alınamadı, varsayılan konum kullanılıyor:', locationError.message);
-      
-      // ✅ Konum alınamazsa varsayılan ODTÜ koordinatları
-      latitude = 39.8917;
-      longitude = 32.7806;
-      
-      setError('⚠️ Konum alınamadı, varsayılan konum kullanıldı. Veri yine de gönderildi.');
-    }
-
-    // Validation
-    if (activeTab === 'library') {
-      if (!selectedFloor || !occupancyValue) {
-        throw new Error('Lütfen tüm alanları doldurun');
-      }
-
-      // Firestore'a kaydet
-      await addDoc(collection(db, 'library_data'), {
-        floor: selectedFloor,
-        occupancy: parseInt(occupancyValue),
-        userId: authUser.uid,
-        userEmail: authUser.email,
-        latitude,
-        longitude,
-        timestamp: serverTimestamp()
-      });
-
-    } else if (activeTab === 'cafeteria') {
-      if (!selectedCafeteria || !queueStatus) {
-        throw new Error('Lütfen tüm alanları doldurun');
-      }
-
-      // Firestore'a kaydet
-      await addDoc(collection(db, 'cafeteria_data'), {
-        location: selectedCafeteria,
-        queueStatus,
-        occupancy: queueStatus === 'Kısa' ? 30 : queueStatus === 'Orta' ? 60 : 90,
-        userId: authUser.uid,
-        userEmail: authUser.email,
-        latitude,
-        longitude,
-        timestamp: serverTimestamp()
-      });
-    }
-
-    // Kullanıcı puanını güncelle
-    const newPoints = points + 10;
-    const newContributions = totalContributions + 1;
-
-    await setDoc(doc(db, 'users', authUser.uid), {
-      points: newPoints,
-      totalContributions: newContributions,
-      lastSubmit: serverTimestamp()
-    }, { merge: true });
-
-    const submitTime = Date.now();
-    setPoints(newPoints);
-    setTotalContributions(newContributions);
-    setLastSubmitTime(submitTime);
-    localStorage.setItem('libocculus_last_submit', submitTime.toString());
-    
-    setSuccess('Veri gönderildi! +10 puan kazandınız 🎉');
-    
-    // Form temizle
-    setSelectedFloor('');
-    setOccupancyValue('');
-    setSelectedCafeteria('');
-    setQueueStatus('');
-
-    // Verileri yeniden çek
-    setTimeout(() => {
-      window.location.reload();
-    }, 1500);
-
-  } catch (err) {
-    console.error('❌ Submit error:', err);
-    
-    if (err.message.includes('tüm alanları')) {
-      setError(err.message);
-    } else if (err.message.includes('Konum')) {
-      setError(err.message);
-    } else {
-      setError('Veri gönderilemedi. Lütfen tekrar deneyin.');
-    }
-  } finally {
-    setLoading(false);
-  }
-};
-
 
   const handleRedeemReward = async (reward) => {
     if (points < reward.points) {
@@ -395,218 +219,12 @@ const handleSubmitData = async () => {
     }
   };
 
-  // Animation Variants
-  const pageVariants = {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 }
-  };
-
   const modalVariants = {
     initial: { opacity: 0, scale: 0.9 },
     animate: { opacity: 1, scale: 1 },
     exit: { opacity: 0, scale: 0.9 }
   };
 
-  // Auth Screen
-  if (!isAuthenticated) {
-    return (
-      <motion.div 
-        className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 flex items-center justify-center p-4"
-        initial="initial"
-        animate="animate"
-        variants={pageVariants}
-      >
-        <div className="w-full max-w-md">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-red-200 overflow-hidden">
-            <div className="p-8 text-center space-y-4">
-              <motion.div 
-                className="mx-auto w-20 h-20 bg-gradient-to-br from-red-600 to-red-800 rounded-2xl flex items-center justify-center shadow-lg"
-                whileHover={{ rotate: 360, scale: 1.1 }}
-                transition={{ duration: 0.5 }}
-              >
-                <BookOpen className="w-10 h-10 text-white" />
-              </motion.div>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
-                  Libocculus
-                </h1>
-                <p className="text-gray-600 text-base mt-2">
-                  ODTÜ Kampüs Doluluk Takip Sistemi
-                </p>
-              </div>
-            </div>
-
-            <div className="p-8 pt-0 space-y-4">
-              <AnimatePresence mode="wait">
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="bg-red-50 border border-red-500 rounded-lg p-4"
-                  >
-                    <div className="flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                      <p className="text-red-800 text-sm">{error}</p>
-                    </div>
-                  </motion.div>
-                )}
-
-                {success && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="bg-green-50 border border-green-500 rounded-lg p-4"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <p className="text-green-800 text-sm">{success}</p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {authMode === 'login' && (
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
-                    <input
-                      type="email"
-                      placeholder="e1234567@metu.edu.tr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Şifre</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all"
-                  >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Giriş Yap'}
-                  </button>
-                  <div className="flex justify-between text-sm">
-                    <button
-                      type="button"
-                      onClick={() => setAuthMode('register')}
-                      className="text-red-600 hover:underline"
-                    >
-                      Hesap Oluştur
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAuthMode('reset')}
-                      className="text-red-600 hover:underline"
-                    >
-                      Şifremi Unuttum
-                    </button>
-                  </div>
-                </form>
-              )}
-
-              {authMode === 'register' && (
-                <form onSubmit={handleRegister} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Öğrenci Numarası</label>
-                    <input
-                      placeholder="1234567"
-                      value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
-                      maxLength={7}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
-                    <input
-                      type="email"
-                      placeholder="e1234567@metu.edu.tr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">Şifre</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Kayıt Ol'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('login')}
-                    className="w-full text-sm text-red-600 hover:underline"
-                  >
-                    Zaten hesabım var
-                  </button>
-                </form>
-              )}
-
-              {authMode === 'reset' && (
-                <form onSubmit={handleResetPassword} className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700">ODTÜ E-posta</label>
-                    <input
-                      type="email"
-                      placeholder="e1234567@metu.edu.tr"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
-                      required
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50"
-                  >
-                    {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : 'Şifre Sıfırlama Linki Gönder'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode('login')}
-                    className="w-full text-sm text-red-600 hover:underline"
-                  >
-                    Giriş sayfasına dön
-                  </button>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // QR Code Modal
   if (showQR && selectedReward) {
     const daysLeft = Math.ceil((selectedReward.expiresAt - new Date()) / (1000 * 60 * 60 * 24));
     
@@ -668,7 +286,6 @@ const handleSubmitData = async () => {
     );
   }
 
-  // Rewards Store Modal
   if (showRewards) {
     return (
       <motion.div 
@@ -726,7 +343,6 @@ const handleSubmitData = async () => {
     );
   }
 
-  // My Rewards Modal
   if (showMyRewards) {
     return (
       <motion.div 
@@ -808,7 +424,6 @@ const handleSubmitData = async () => {
     );
   }
 
-  // Main Dashboard
   const libraryChartData = Object.entries(libraryData).map(([floor, data]) => ({
     floor,
     doluluk: data.occupancy
@@ -819,7 +434,6 @@ const handleSubmitData = async () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50">
-      {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 text-white shadow-xl sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -862,7 +476,6 @@ const handleSubmitData = async () => {
         </div>
       </div>
 
-      {/* Alerts */}
       <div className="max-w-7xl mx-auto px-4 pt-4">
         <AnimatePresence>
           {error && (
@@ -895,9 +508,7 @@ const handleSubmitData = async () => {
         </AnimatePresence>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <motion.div whileHover={{ scale: 1.02 }} className="bg-white rounded-xl border-2 border-blue-200 p-6 shadow-lg">
             <div className="flex items-center justify-between">
@@ -930,7 +541,6 @@ const handleSubmitData = async () => {
           </motion.div>
         </div>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 bg-white p-2 rounded-xl shadow-lg border-2 border-gray-200">
           <button
             onClick={() => setActiveTab('library')}
@@ -956,7 +566,6 @@ const handleSubmitData = async () => {
           </button>
         </div>
 
-        {/* Library Tab */}
         {activeTab === 'library' && (
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -1004,7 +613,6 @@ const handleSubmitData = async () => {
               </div>
             </div>
 
-            {/* Submit Form - Library */}
             <div className="bg-white rounded-xl border-2 border-green-200 p-6 shadow-xl">
               <div className="flex items-center gap-2 mb-4">
                 <MapPin className="w-5 h-5 text-green-600" />
@@ -1060,7 +668,6 @@ const handleSubmitData = async () => {
           </motion.div>
         )}
 
-        {/* Cafeteria Tab */}
         {activeTab === 'cafeteria' && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -1105,7 +712,6 @@ const handleSubmitData = async () => {
               </div>
             </div>
 
-            {/* Submit Form - Cafeteria */}
             <div className="bg-white rounded-xl border-2 border-green-200 p-6 shadow-xl">
               <div className="flex items-center gap-2 mb-4">
                 <MapPin className="w-5 h-5 text-green-600" />
@@ -1162,17 +768,6 @@ const handleSubmitData = async () => {
           </motion.div>
         )}
       </div>
-
-      {/* Modals */}
-      <AnimatePresence>
-        {(showRewards || showMyRewards || showQR) && (
-          <>
-            {showRewards && <div />}
-            {showMyRewards && <div />}
-            {showQR && <div />}
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 };
