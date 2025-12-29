@@ -26,7 +26,7 @@ function App() {
         />
         <Route 
           path="/dashboard" 
-          element={user ? <LibocculusApp user={user} /> : <Navigate to="/" />}  {/* ✅ user prop eklendi */}
+          element={user ? <LibocculusApp user={user} /> : <Navigate to="/" />}
         />
       </Routes>
     </BrowserRouter>
