@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Mail, Lock, Loader2, AlertCircle, CheckCircle, RefreshCw, ShieldAlert, Shield } from 'lucide-react';
+import { BookOpen, Mail, Lock, Loader2, AlertCircle, CheckCircle, RefreshCw, ShieldAlert, Shield, User } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 
 const LoginScreen = () => {
   const [mode, setMode] = useState('login'); // login, register, verify, reset
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [studentId, setStudentId] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [showAdBlockWarning, setShowAdBlockWarning] = useState(false);
@@ -51,12 +52,13 @@ const LoginScreen = () => {
       return;
     }
 
-    const user = await verifyOTPAndRegister(email, otp, password);
+    const user = await verifyOTPAndRegister(email, otp, password, studentId);
     if (user) {
       setMode('login');
       setOtpSent(false);
       setOtp('');
       setPassword('');
+      setStudentId('');
     }
   };
 
@@ -228,6 +230,9 @@ const LoginScreen = () => {
                       disabled={loading}
                     />
                   </div>
+                  <p className="text-xs text-gray-500">
+                    E-postanızdan öğrenci numaranız otomatik alınacaktır
+                  </p>
                 </div>
 
                 <button
@@ -255,7 +260,7 @@ const LoginScreen = () => {
               </form>
             )}
 
-            {/* REGISTER FORM - Step 2: Verify OTP */}
+            {/* REGISTER FORM - Step 2: Verify OTP + Student ID + Password */}
             {mode === 'register' && otpSent && (
               <form onSubmit={handleVerifyAndRegister} className="space-y-4">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
@@ -280,6 +285,26 @@ const LoginScreen = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Öğrenci Numarası</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="2345678"
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value.replace(/\D/g, '').slice(0, 7))}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                      disabled={loading}
+                      maxLength={7}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    E-postanızdaki numarayla aynı olmalı (e<strong>2345678</strong>@metu.edu.tr → <strong>2345678</strong>)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">Şifre Oluştur</label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -299,7 +324,7 @@ const LoginScreen = () => {
 
                 <button
                   type="submit"
-                  disabled={loading || otp.length !== 6}
+                  disabled={loading || otp.length !== 6 || studentId.length !== 7}
                   className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-semibold py-3 rounded-xl shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Doğrula ve Kayıt Ol'}
@@ -317,7 +342,7 @@ const LoginScreen = () => {
 
                 <button
                   type="button"
-                  onClick={() => { setMode('login'); setOtpSent(false); setOtp(''); }}
+                  onClick={() => { setMode('login'); setOtpSent(false); setOtp(''); setStudentId(''); }}
                   className="w-full text-center text-red-600 hover:underline text-sm"
                 >
                   İptal

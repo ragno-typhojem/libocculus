@@ -75,8 +75,8 @@ export const useAuth = () => {
     }
   };
 
-  // ✅ OTP Doğrula ve Kayıt Ol
-  const verifyOTPAndRegister = async (email, otp, password) => {
+  // ✅ OTP Doğrula ve Kayıt Ol (Student ID Eklendi)
+  const verifyOTPAndRegister = async (email, otp, password, studentId) => {
     setLoading(true);
     setError('');
     setSuccess('');
@@ -110,19 +110,35 @@ export const useAuth = () => {
         throw new Error('Şifre en az 6 karakter olmalıdır');
       }
 
+      // Student ID validasyonu
+      if (!studentId || studentId.length !== 7) {
+        throw new Error('Öğrenci numarası 7 haneli olmalıdır');
+      }
+
+      // Student ID sadece rakam mı?
+      if (!/^\d+$/.test(studentId)) {
+        throw new Error('Öğrenci numarası sadece rakamlardan oluşmalıdır');
+      }
+
+      // Email'deki student ID ile eşleşiyor mu?
+      const emailStudentId = email.split('@')[0].substring(1); // e2345678 -> 2345678
+      if (emailStudentId !== studentId) {
+        throw new Error('Öğrenci numarası e-posta adresinizle eşleşmiyor');
+      }
+
       // ✅ Firebase kullanıcı oluştur
       console.log('🔵 Kullanıcı oluşturuluyor...');
       const result = await createUserWithEmailAndPassword(auth, email, password);
 
       console.log('✅ Firebase Auth kullanıcısı oluşturuldu');
 
-      // ✅ Firestore'a kullanıcı bilgilerini kaydet (emailVerified: true)
+      // ✅ Firestore'a kullanıcı bilgilerini kaydet
       await setDoc(doc(db, 'users', result.user.uid), {
         email: result.user.email,
-        studentId: email.split('@')[0].substring(1),
+        studentId: studentId,
         points: 0,
         totalContributions: 0,
-        emailVerified: true, // ✅ OTP doğrulandı, direkt true
+        emailVerified: true, // ✅ OTP doğrulandı
         createdAt: new Date(),
         lastLogin: new Date()
       });
@@ -224,7 +240,7 @@ export const useAuth = () => {
     }
   };
 
-  // ✅ Şifre sıfırlama (Firebase default - çalışıyor)
+  // ✅ Şifre sıfırlama
   const resetPassword = async (email) => {
     setLoading(true);
     setError('');
