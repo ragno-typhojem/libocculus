@@ -75,107 +75,94 @@ export const useAuth = () => {
     }
   };
 
-  // ✅ OTP Doğrula ve Kayıt Ol (Student ID Eklendi)
-  const verifyOTPAndRegister = async (email, otp, password, studentId) => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+const verifyOTPAndRegister = async (email, otp, password, studentId) => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    try {
-      console.log('🔵 OTP doğrulanıyor...');
+  try {
+    console.log('🔵 OTP doğrulanıyor...');
 
-      // Firestore'dan OTP'yi getir
-      const otpDoc = await getDoc(doc(db, 'otps', email));
+    const otpDoc = await getDoc(doc(db, 'otps', email));
 
-      if (!otpDoc.exists()) {
-        throw new Error('OTP bulunamadı. Lütfen yeni kod isteyin.');
-      }
-
-      const otpData = otpDoc.data();
-
-      // Süre kontrolü
-      if (Date.now() > otpData.expiresAt) {
-        throw new Error('OTP süresi dolmuş. Lütfen yeni kod isteyin.');
-      }
-
-      // OTP kontrolü
-      if (otpData.otp !== otp.trim()) {
-        throw new Error('Geçersiz OTP. Lütfen tekrar kontrol edin.');
-      }
-
-      console.log('✅ OTP doğrulandı');
-
-      // Şifre validasyonu
-      if (password.length < 6) {
-        throw new Error('Şifre en az 6 karakter olmalıdır');
-      }
-
-      // Student ID validasyonu
-      if (!studentId || studentId.length !== 7) {
-        throw new Error('Öğrenci numarası 7 haneli olmalıdır');
-      }
-
-      // Student ID sadece rakam mı?
-      if (!/^\d+$/.test(studentId)) {
-        throw new Error('Öğrenci numarası sadece rakamlardan oluşmalıdır');
-      }
-
-      // Email'deki student ID ile eşleşiyor mu?
-      const emailStudentId = email.split('@')[0].substring(1); // e2345678 -> 2345678
-      if (emailStudentId !== studentId) {
-        throw new Error('Öğrenci numarası e-posta adresinizle eşleşmiyor');
-      }
-
-      // ✅ Firebase kullanıcı oluştur
-      console.log('🔵 Kullanıcı oluşturuluyor...');
-      const result = await createUserWithEmailAndPassword(auth, email, password);
-
-      console.log('✅ Firebase Auth kullanıcısı oluşturuldu');
-
-      // ✅ Firestore'a kullanıcı bilgilerini kaydet
-      await setDoc(doc(db, 'users', result.user.uid), {
-        email: result.user.email,
-        studentId: studentId,
-        points: 0,
-        totalContributions: 0,
-        emailVerified: true, // ✅ OTP doğrulandı
-        createdAt: new Date(),
-        lastLogin: new Date()
-      });
-
-      console.log('✅ Firestore kaydı oluşturuldu');
-
-      // OTP'yi verified işaretle
-      await setDoc(doc(db, 'otps', email), {
-        verified: true,
-        verifiedAt: new Date()
-      }, { merge: true });
-
-      setSuccess('Kayıt başarılı! Giriş yapabilirsiniz.');
-      return result.user;
-    } catch (err) {
-      console.error('❌ Verify and register error:', err);
-
-      let errorMessage = 'Doğrulama başarısız.';
-
-      if (err.message.includes('OTP süresi dolmuş')) {
-        errorMessage = 'Doğrulama kodunun süresi dolmuş. Yeni kod isteyin.';
-      } else if (err.message.includes('Geçersiz OTP')) {
-        errorMessage = 'Geçersiz doğrulama kodu. Lütfen mailinizi kontrol edin.';
-      } else if (err.message.includes('OTP bulunamadı')) {
-        errorMessage = err.message;
-      } else if (err.code === 'auth/email-already-in-use') {
-        errorMessage = 'Bu e-posta adresi zaten kullanımda. Giriş yapmayı deneyin.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-
-      setError(errorMessage);
-      return null;
-    } finally {
-      setLoading(false);
+    if (!otpDoc.exists()) {
+      throw new Error('OTP bulunamadı. Lütfen yeni kod isteyin.');
     }
-  };
+
+    const otpData = otpDoc.data();
+
+    if (Date.now() > otpData.expiresAt) {
+      throw new Error('OTP süresi dolmuş. Lütfen yeni kod isteyin.');
+    }
+
+    if (otpData.otp !== otp.trim()) {
+      throw new Error('Geçersiz OTP. Lütfen tekrar kontrol edin.');
+    }
+
+    console.log('✅ OTP doğrulandı');
+
+    if (password.length < 6) {
+      throw new Error('Şifre en az 6 karakter olmalıdır');
+    }
+
+    if (!studentId || studentId.length !== 7) {
+      throw new Error('Öğrenci numarası 7 haneli olmalıdır');
+    }
+
+    if (!/^\d+$/.test(studentId)) {
+      throw new Error('Öğrenci numarası sadece rakamlardan oluşmalıdır');
+    }
+
+    // ✅ SİLİNDİ - Email ile student ID eşleşme kontrolü
+
+    console.log('🔵 Kullanıcı oluşturuluyor...');
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+
+    console.log('✅ Firebase Auth kullanıcısı oluşturuldu');
+
+    await setDoc(doc(db, 'users', result.user.uid), {
+      email: result.user.email,
+      studentId: studentId,
+      points: 0,
+      totalContributions: 0,
+      emailVerified: true,
+      createdAt: new Date(),
+      lastLogin: new Date()
+    });
+
+    console.log('✅ Firestore kaydı oluşturuldu');
+
+    await setDoc(doc(db, 'otps', email), {
+      verified: true,
+      verifiedAt: new Date()
+    }, { merge: true });
+
+    setSuccess('Kayıt başarılı! Giriş yapabilirsiniz.');
+    return result.user;
+  } catch (err) {
+    console.error('❌ Verify and register error:', err);
+
+    let errorMessage = 'Doğrulama başarısız.';
+
+    if (err.message.includes('OTP süresi dolmuş')) {
+      errorMessage = 'Doğrulama kodunun süresi dolmuş. Yeni kod isteyin.';
+    } else if (err.message.includes('Geçersiz OTP')) {
+      errorMessage = 'Geçersiz doğrulama kodu. Lütfen mailinizi kontrol edin.';
+    } else if (err.message.includes('OTP bulunamadı')) {
+      errorMessage = err.message;
+    } else if (err.code === 'auth/email-already-in-use') {
+      errorMessage = 'Bu e-posta adresi zaten kullanımda. Giriş yapmayı deneyin.';
+    } else if (err.message) {
+      errorMessage = err.message;
+    }
+
+    setError(errorMessage);
+    return null;
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // ✅ Giriş yap (emailVerified kontrolü Firestore'dan)
   const login = async (email, password) => {

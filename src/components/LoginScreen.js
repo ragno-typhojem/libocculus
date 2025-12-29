@@ -299,9 +299,6 @@ const LoginScreen = () => {
                       maxLength={7}
                     />
                   </div>
-                  <p className="text-xs text-gray-500">
-                    E-postanızdaki numarayla aynı olmalı (e<strong>2345678</strong>@metu.edu.tr → <strong>2345678</strong>)
-                  </p>
                 </div>
 
                 <div className="space-y-2">
